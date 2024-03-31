@@ -11,6 +11,10 @@ import (
 	_ "github.com/glebarez/go-sqlite"
 )
 
+const (
+	indexUpdated = "INDEX_UPDATED"
+)
+
 func main() {
 	workingDir, err := os.Getwd()
 	if err != nil {
@@ -33,12 +37,11 @@ func main() {
 		log.Fatal(err)
 	}
 
-	q := db.QueryRow("select sqlite_version()")
-	var version string
-	q.Scan(&version)
-	log.Println(version)
+	indexStatus := make(chan string)
+	done := make(chan struct{})
+	go index(workingDir, db, indexStatus, done)
 
-	walk(workingDir, "", db)
+	<-indexStatus
 
 	var path string
 	var hash []byte
@@ -50,6 +53,14 @@ func main() {
 		rows.Scan(&path, &hash)
 		log.Printf("%s %s", hex.EncodeToString(hash), path)
 	}
+
+	done <- struct{}{}
+}
+
+func index(dir string, db *sql.DB, status chan<- string, done <-chan struct{}) {
+	walk(dir, "", db)
+	status <- indexUpdated
+	<-done
 }
 
 func walk(baseDir string, subDir string, db *sql.DB) {
