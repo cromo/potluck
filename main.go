@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/fsnotify/fsnotify"
 	_ "github.com/glebarez/go-sqlite"
 )
 
@@ -37,9 +38,13 @@ func main() {
 		log.Fatal(err)
 	}
 
-	indexStatus := make(chan string)
 	done := make(chan struct{})
+
+	indexStatus := make(chan string)
 	go index(workingDir, db, indexStatus, done)
+
+	transferRequests := make(chan string)
+	go coordinate(db, transferRequests, done)
 
 	<-indexStatus
 
@@ -54,13 +59,63 @@ func main() {
 		log.Printf("%s %s", hex.EncodeToString(hash), path)
 	}
 
-	done <- struct{}{}
+	for {
+		select {
+		case request := <-transferRequests:
+			log.Println("Got request for:", request)
+		}
+	}
+	// done <- struct{}{}
+	// done <- struct{}{}
 }
 
 func index(dir string, db *sql.DB, status chan<- string, done <-chan struct{}) {
 	walk(dir, "", db)
 	status <- indexUpdated
 	<-done
+}
+
+func coordinate(db *sql.DB, transferRequests chan<- string, done <-chan struct{}) {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer watcher.Close()
+
+	watcherDone := make(chan struct{})
+
+	go func() {
+		for {
+			select {
+			case event, ok := <-watcher.Events:
+				if !ok {
+					return
+				}
+				log.Println("event:", event)
+				if event.Has(fsnotify.Write) {
+					hash := filepath.Base(event.Name)
+					if have(db, hash) {
+						transferRequests <- hash
+					}
+				}
+			case err, ok := <-watcher.Errors:
+				if !ok {
+					return
+				}
+				log.Println("error:", err)
+			case <-watcherDone:
+				return
+			}
+		}
+	}()
+
+	err = watcher.AddWith("coordination")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	<-done
+	watcherDone <- struct{}{}
 }
 
 func walk(baseDir string, subDir string, db *sql.DB) {
@@ -95,4 +150,16 @@ func hashFile(path string) []byte {
 	}
 	hash := sha256.Sum256(content)
 	return hash[:]
+}
+
+func have(db *sql.DB, hash string) bool {
+	hashBin, err := hex.DecodeString(hash)
+	if err != nil {
+		log.Printf("Error decoding hash: %v\n", err)
+		return false
+	}
+	result := db.QueryRow(`select path from content where hash = ?`, hashBin)
+	var path string
+	err = result.Scan(&path)
+	return err != sql.ErrNoRows
 }
