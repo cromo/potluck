@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -46,6 +47,8 @@ func main() {
 	transferRequests := make(chan string)
 	go coordinate(db, transferRequests, done)
 
+	go transfer(db, transferRequests, done)
+
 	<-indexStatus
 
 	var path string
@@ -59,14 +62,10 @@ func main() {
 		log.Printf("%s %s", hex.EncodeToString(hash), path)
 	}
 
-	for {
-		select {
-		case request := <-transferRequests:
-			log.Println("Got request for:", request)
-		}
-	}
 	// done <- struct{}{}
 	// done <- struct{}{}
+	// done <- struct{}{}
+	<-make(chan struct{})
 }
 
 func index(dir string, db *sql.DB, status chan<- string, done <-chan struct{}) {
@@ -118,6 +117,18 @@ func coordinate(db *sql.DB, transferRequests chan<- string, done <-chan struct{}
 	watcherDone <- struct{}{}
 }
 
+func transfer(db *sql.DB, transferRequests <-chan string, done <-chan struct{}) {
+	for {
+		select {
+		case hash := <-transferRequests:
+			path := pathFromHash(db, hash)
+			copyFile(path, filepath.Join("transfer", hash))
+		case <-done:
+			return
+		}
+	}
+}
+
 func walk(baseDir string, subDir string, db *sql.DB) {
 	dir := filepath.Join(baseDir, subDir)
 	d, err := os.Open(dir)
@@ -162,4 +173,37 @@ func have(db *sql.DB, hash string) bool {
 	var path string
 	err = result.Scan(&path)
 	return err != sql.ErrNoRows
+}
+
+func pathFromHash(db *sql.DB, hash string) string {
+	hashBin, err := hex.DecodeString(hash)
+	if err != nil {
+		log.Fatalf("Error decoding hash: %v\n", err)
+	}
+	result := db.QueryRow(`select path from content where hash = ?`, hashBin)
+	var path string
+	err = result.Scan(&path)
+	if err == sql.ErrNoRows {
+		log.Fatal(err)
+	}
+	return path
+}
+
+func copyFile(src, dst string) {
+	out, err := os.Create(dst)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer out.Close()
+
+	in, err := os.Open(src)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer in.Close()
+
+	_, err = io.Copy(out, in)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
