@@ -1,15 +1,16 @@
 package transfer
 
 import (
-	"database/sql"
 	"encoding/hex"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
+
+	"github.com/cromo/potluck/persistence"
 )
 
-func File(dir string, db *sql.DB, transferRequests <-chan Request, done <-chan struct{}) {
+func File(dir string, db *persistence.HashDB, transferRequests <-chan Request, done <-chan struct{}) {
 	for {
 		select {
 		case request := <-transferRequests:
@@ -21,15 +22,13 @@ func File(dir string, db *sql.DB, transferRequests <-chan Request, done <-chan s
 	}
 }
 
-func pathFromHash(db *sql.DB, hash string) string {
+func pathFromHash(db *persistence.HashDB, hash string) string {
 	hashBin, err := hex.DecodeString(hash)
 	if err != nil {
 		log.Fatalf("Error decoding hash: %v\n", err)
 	}
-	result := db.QueryRow(`select path from content where hash = ?`, hashBin)
-	var path string
-	err = result.Scan(&path)
-	if err == sql.ErrNoRows {
+	path, err := db.GetPathForHash(hashBin)
+	if err != nil {
 		log.Fatal(err)
 	}
 	return path

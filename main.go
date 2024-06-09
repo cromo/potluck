@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/hex"
 	"log"
 	"os"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/cromo/potluck/coordinate"
 	"github.com/cromo/potluck/index"
+	"github.com/cromo/potluck/persistence"
 	"github.com/cromo/potluck/transfer"
 )
 
@@ -20,17 +20,7 @@ func main() {
 	}
 	log.Printf("%s\n\n", workingDir)
 
-	db, err := sql.Open("sqlite", ":memory:")
-	if err != nil {
-		log.Fatal(err)
-	}
-	if err := db.Ping(); err != nil {
-		log.Fatal(err)
-	}
-	_, err = db.Exec(`create table if not exists content (
-		path text primary key not null,
-		hash blob not null
-	)`)
+	db, err := persistence.CreateInMemory()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -51,15 +41,12 @@ func main() {
 
 	<-indexStatus
 
-	var path string
-	var hash []byte
-	rows, err := db.Query(`select path, hash from content order by hash`)
+	hashSets, err := db.ListAll()
 	if err != nil {
 		log.Fatal(err)
 	}
-	for rows.Next() {
-		rows.Scan(&path, &hash)
-		log.Printf("%s %s", hex.EncodeToString(hash), path)
+	for _, hashSet := range hashSets {
+		log.Printf("%s %s", hex.EncodeToString(hashSet.Hash), hashSet.Path)
 	}
 
 	// for range workers {

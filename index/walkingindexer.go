@@ -2,11 +2,11 @@ package index
 
 import (
 	"crypto/sha256"
-	"database/sql"
 	"log"
 	"os"
 	"path/filepath"
 
+	"github.com/cromo/potluck/persistence"
 	_ "github.com/glebarez/go-sqlite"
 )
 
@@ -14,13 +14,13 @@ const (
 	indexUpdated = "INDEX_UPDATED"
 )
 
-func FileWalker(dir string, db *sql.DB, status chan<- string, done <-chan struct{}) {
+func FileWalker(dir string, db *persistence.HashDB, status chan<- string, done <-chan struct{}) {
 	walk(dir, "", db)
 	status <- indexUpdated
 	<-done
 }
 
-func walk(baseDir string, subDir string, db *sql.DB) {
+func walk(baseDir string, subDir string, db *persistence.HashDB) {
 	dir := filepath.Join(baseDir, subDir)
 	d, err := os.Open(dir)
 	if err != nil {
@@ -37,7 +37,7 @@ func walk(baseDir string, subDir string, db *sql.DB) {
 		if file.IsDir() {
 			walk(baseDir, filepath.Join(subDir, file.Name()), db)
 		} else {
-			_, err := db.Exec(`insert into content (path, hash) VALUES (?, ?)`, filepath.Join(subDir, file.Name()), hashFile(fullPath))
+			err := db.AddFileHash(filepath.Join(subDir, file.Name()), hashFile(fullPath))
 			if err != nil {
 				log.Fatal(err)
 			}

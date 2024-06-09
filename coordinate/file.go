@@ -1,16 +1,16 @@
 package coordinate
 
 import (
-	"database/sql"
 	"encoding/hex"
 	"log"
 	"path/filepath"
 
+	"github.com/cromo/potluck/persistence"
 	"github.com/cromo/potluck/transfer"
 	"github.com/fsnotify/fsnotify"
 )
 
-func File(dir string, db *sql.DB, transferRequests chan<- transfer.Request, done <-chan struct{}) {
+func File(dir string, db *persistence.HashDB, transferRequests chan<- transfer.Request, done <-chan struct{}) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Fatal(err)
@@ -53,14 +53,11 @@ func File(dir string, db *sql.DB, transferRequests chan<- transfer.Request, done
 	watcherDone <- struct{}{}
 }
 
-func have(db *sql.DB, hash string) bool {
+func have(db *persistence.HashDB, hash string) bool {
 	hashBin, err := hex.DecodeString(hash)
 	if err != nil {
 		log.Printf("Error decoding hash: %v\n", err)
 		return false
 	}
-	result := db.QueryRow(`select path from content where hash = ?`, hashBin)
-	var path string
-	err = result.Scan(&path)
-	return err != sql.ErrNoRows
+	return db.HaveHash(hashBin)
 }
