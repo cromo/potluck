@@ -40,13 +40,9 @@ func main() {
 	var workers []func()
 
 	indexStatus := make(chan string)
-	workers = append(workers, func() {
-		index.FileWalker(workingDir, db, indexStatus, done)
-	})
-
-	transferRequests := make(chan string)
+	transferRequests := make(chan transfer.Request)
+	workers = append(workers, func() { index.FileWalker(workingDir, db, indexStatus, done) })
 	workers = append(workers, func() { coordinate.File("coordination", db, transferRequests, done) })
-
 	workers = append(workers, func() { transfer.File("transferred", db, transferRequests, done) })
 
 	for _, worker := range workers {

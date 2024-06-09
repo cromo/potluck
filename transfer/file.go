@@ -9,12 +9,12 @@ import (
 	"path/filepath"
 )
 
-func File(dir string, db *sql.DB, transferRequests <-chan string, done <-chan struct{}) {
+func File(dir string, db *sql.DB, transferRequests <-chan Request, done <-chan struct{}) {
 	for {
 		select {
-		case hash := <-transferRequests:
-			path := pathFromHash(db, hash)
-			copyFile(path, filepath.Join(dir, hash))
+		case request := <-transferRequests:
+			path := pathFromHash(db, request.Hash)
+			copyFile(path, filepath.Join(dir, request.Hash))
 		case <-done:
 			return
 		}

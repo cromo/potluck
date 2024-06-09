@@ -6,10 +6,11 @@ import (
 	"log"
 	"path/filepath"
 
+	"github.com/cromo/potluck/transfer"
 	"github.com/fsnotify/fsnotify"
 )
 
-func File(dir string, db *sql.DB, transferRequests chan<- string, done <-chan struct{}) {
+func File(dir string, db *sql.DB, transferRequests chan<- transfer.Request, done <-chan struct{}) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Fatal(err)
@@ -29,7 +30,7 @@ func File(dir string, db *sql.DB, transferRequests chan<- string, done <-chan st
 				if event.Has(fsnotify.Write) {
 					hash := filepath.Base(event.Name)
 					if have(db, hash) {
-						transferRequests <- hash
+						transferRequests <- transfer.Request{Hash: hash}
 					}
 				}
 			case err, ok := <-watcher.Errors:
