@@ -37,13 +37,21 @@ func main() {
 
 	done := make(chan struct{})
 
+	var workers []func()
+
 	indexStatus := make(chan string)
-	go index.FileWalker(workingDir, db, indexStatus, done)
+	workers = append(workers, func() {
+		index.FileWalker(workingDir, db, indexStatus, done)
+	})
 
 	transferRequests := make(chan string)
-	go coordinate.File(db, transferRequests, done)
+	workers = append(workers, func() { coordinate.File("coordination", db, transferRequests, done) })
 
-	go transfer.File(db, transferRequests, done)
+	workers = append(workers, func() { transfer.File("transferred", db, transferRequests, done) })
+
+	for _, worker := range workers {
+		go worker()
+	}
 
 	<-indexStatus
 
@@ -58,8 +66,8 @@ func main() {
 		log.Printf("%s %s", hex.EncodeToString(hash), path)
 	}
 
-	// done <- struct{}{}
-	// done <- struct{}{}
-	// done <- struct{}{}
+	// for range workers {
+	// 	done <- struct{}{}
+	// }
 	<-make(chan struct{})
 }

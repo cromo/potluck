@@ -9,7 +9,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
-func File(db *sql.DB, transferRequests chan<- string, done <-chan struct{}) {
+func File(dir string, db *sql.DB, transferRequests chan<- string, done <-chan struct{}) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Fatal(err)
@@ -43,7 +43,7 @@ func File(db *sql.DB, transferRequests chan<- string, done <-chan struct{}) {
 		}
 	}()
 
-	err = watcher.AddWith("coordination")
+	err = watcher.AddWith(dir)
 	if err != nil {
 		log.Fatal(err)
 	}
