@@ -14,7 +14,7 @@ func File(dir string, db *sql.DB, transferRequests <-chan Request, done <-chan s
 		select {
 		case request := <-transferRequests:
 			path := pathFromHash(db, request.Hash)
-			copyFile(path, filepath.Join(dir, request.Hash))
+			copyFile(path, filepath.Join(dir, request.Hash+filepath.Ext(path)))
 		case <-done:
 			return
 		}
