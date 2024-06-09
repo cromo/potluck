@@ -1,20 +1,16 @@
 package main
 
 import (
-	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
-	"io"
 	"log"
 	"os"
-	"path/filepath"
 
-	"github.com/fsnotify/fsnotify"
 	_ "github.com/glebarez/go-sqlite"
-)
 
-const (
-	indexUpdated = "INDEX_UPDATED"
+	"github.com/cromo/potluck/coordinate"
+	"github.com/cromo/potluck/index"
+	"github.com/cromo/potluck/transfer"
 )
 
 func main() {
@@ -42,12 +38,12 @@ func main() {
 	done := make(chan struct{})
 
 	indexStatus := make(chan string)
-	go index(workingDir, db, indexStatus, done)
+	go index.FileWalker(workingDir, db, indexStatus, done)
 
 	transferRequests := make(chan string)
-	go coordinate(db, transferRequests, done)
+	go coordinate.File(db, transferRequests, done)
 
-	go transfer(db, transferRequests, done)
+	go transfer.File(db, transferRequests, done)
 
 	<-indexStatus
 
@@ -66,144 +62,4 @@ func main() {
 	// done <- struct{}{}
 	// done <- struct{}{}
 	<-make(chan struct{})
-}
-
-func index(dir string, db *sql.DB, status chan<- string, done <-chan struct{}) {
-	walk(dir, "", db)
-	status <- indexUpdated
-	<-done
-}
-
-func coordinate(db *sql.DB, transferRequests chan<- string, done <-chan struct{}) {
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer watcher.Close()
-
-	watcherDone := make(chan struct{})
-
-	go func() {
-		for {
-			select {
-			case event, ok := <-watcher.Events:
-				if !ok {
-					return
-				}
-				log.Println("event:", event)
-				if event.Has(fsnotify.Write) {
-					hash := filepath.Base(event.Name)
-					if have(db, hash) {
-						transferRequests <- hash
-					}
-				}
-			case err, ok := <-watcher.Errors:
-				if !ok {
-					return
-				}
-				log.Println("error:", err)
-			case <-watcherDone:
-				return
-			}
-		}
-	}()
-
-	err = watcher.AddWith("coordination")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	<-done
-	watcherDone <- struct{}{}
-}
-
-func transfer(db *sql.DB, transferRequests <-chan string, done <-chan struct{}) {
-	for {
-		select {
-		case hash := <-transferRequests:
-			path := pathFromHash(db, hash)
-			copyFile(path, filepath.Join("transfer", hash))
-		case <-done:
-			return
-		}
-	}
-}
-
-func walk(baseDir string, subDir string, db *sql.DB) {
-	dir := filepath.Join(baseDir, subDir)
-	d, err := os.Open(dir)
-	if err != nil {
-		log.Fatal("Failed to open directory")
-	}
-	defer d.Close()
-
-	files, err := d.ReadDir(-1)
-	if err != nil {
-		log.Fatal("Failed to read directory")
-	}
-	for _, file := range files {
-		fullPath := filepath.Join(dir, file.Name())
-		if file.IsDir() {
-			walk(baseDir, filepath.Join(subDir, file.Name()), db)
-		} else {
-			_, err := db.Exec(`insert into content (path, hash) VALUES (?, ?)`, filepath.Join(subDir, file.Name()), hashFile(fullPath))
-			if err != nil {
-				log.Fatal(err)
-			}
-		}
-	}
-}
-
-func hashFile(path string) []byte {
-	content, err := os.ReadFile(path)
-	if err != nil {
-		log.Fatal(err)
-	}
-	hash := sha256.Sum256(content)
-	return hash[:]
-}
-
-func have(db *sql.DB, hash string) bool {
-	hashBin, err := hex.DecodeString(hash)
-	if err != nil {
-		log.Printf("Error decoding hash: %v\n", err)
-		return false
-	}
-	result := db.QueryRow(`select path from content where hash = ?`, hashBin)
-	var path string
-	err = result.Scan(&path)
-	return err != sql.ErrNoRows
-}
-
-func pathFromHash(db *sql.DB, hash string) string {
-	hashBin, err := hex.DecodeString(hash)
-	if err != nil {
-		log.Fatalf("Error decoding hash: %v\n", err)
-	}
-	result := db.QueryRow(`select path from content where hash = ?`, hashBin)
-	var path string
-	err = result.Scan(&path)
-	if err == sql.ErrNoRows {
-		log.Fatal(err)
-	}
-	return path
-}
-
-func copyFile(src, dst string) {
-	out, err := os.Create(dst)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer out.Close()
-
-	in, err := os.Open(src)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer in.Close()
-
-	_, err = io.Copy(out, in)
-	if err != nil {
-		log.Fatal(err)
-	}
 }
