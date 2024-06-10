@@ -15,8 +15,12 @@ const (
 	indexUpdated = "INDEX_UPDATED"
 )
 
-func FileWalker(ctx context.Context, dir string, db *persistence.HashDB, status chan<- string) {
-	walk(dir, "", db)
+type FileWalker struct {
+	Dir string
+}
+
+func (walker *FileWalker) Index(ctx context.Context, db *persistence.HashDB, status chan<- string) {
+	walk(walker.Dir, "", db)
 	status <- indexUpdated
 	<-ctx.Done()
 }

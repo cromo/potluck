@@ -10,7 +10,11 @@ import (
 	"github.com/cromo/potluck/persistence"
 )
 
-func File(ctx context.Context, dir string, db *persistence.HashDB, transferRequests <-chan Request) {
+type FileCopy struct {
+	Dir string
+}
+
+func (transferer *FileCopy) Transfer(ctx context.Context, db *persistence.HashDB, transferRequests <-chan Request) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -20,7 +24,7 @@ func File(ctx context.Context, dir string, db *persistence.HashDB, transferReque
 			if err != nil {
 				log.Fatalf("Error decoding hash: %v\n", err)
 			}
-			copyFile(path, filepath.Join(dir, request.Hash+filepath.Ext(path)))
+			copyFile(path, filepath.Join(transferer.Dir, request.Hash+filepath.Ext(path)))
 		}
 	}
 }

@@ -39,16 +39,25 @@ func main() {
 		cancel()
 	}()
 
-	var workers []func()
-
 	indexStatus := make(chan string)
 	transferRequests := make(chan transfer.Request)
-	workers = append(workers, func() { index.FileWalker(ctx, workingDir, db, indexStatus) })
-	workers = append(workers, func() { coordinate.File(ctx, "coordination", db, transferRequests) })
-	workers = append(workers, func() { transfer.File(ctx, "transferred", db, transferRequests) })
 
-	for _, worker := range workers {
-		go worker()
+	var indexers []index.Indexer
+	var coordinators []coordinate.Coordinator
+	var transferers []transfer.Transferer
+
+	indexers = append(indexers, &index.FileWalker{Dir: workingDir})
+	coordinators = append(coordinators, &coordinate.FileName{Dir: "coordination"})
+	transferers = append(transferers, &transfer.FileCopy{Dir: "transferred"})
+
+	for _, indexer := range indexers {
+		go indexer.Index(ctx, db, indexStatus)
+	}
+	for _, coordinator := range coordinators {
+		go coordinator.Coordinate(ctx, db, transferRequests)
+	}
+	for _, transferer := range transferers {
+		go transferer.Transfer(ctx, db, transferRequests)
 	}
 
 	<-indexStatus

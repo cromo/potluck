@@ -10,7 +10,11 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
-func File(ctx context.Context, dir string, db *persistence.HashDB, transferRequests chan<- transfer.Request) {
+type FileName struct {
+	Dir string
+}
+
+func (coordinator *FileName) Coordinate(ctx context.Context, db *persistence.HashDB, transferRequests chan<- transfer.Request) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Fatal(err)
@@ -42,10 +46,11 @@ func File(ctx context.Context, dir string, db *persistence.HashDB, transferReque
 		}
 	}()
 
-	err = watcher.AddWith(dir)
+	err = watcher.AddWith(coordinator.Dir)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	<-ctx.Done()
+
 }
