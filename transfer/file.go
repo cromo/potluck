@@ -1,6 +1,7 @@
 package transfer
 
 import (
+	"context"
 	"io"
 	"log"
 	"os"
@@ -9,17 +10,17 @@ import (
 	"github.com/cromo/potluck/persistence"
 )
 
-func File(dir string, db *persistence.HashDB, transferRequests <-chan Request, done <-chan struct{}) {
+func File(ctx context.Context, dir string, db *persistence.HashDB, transferRequests <-chan Request) {
 	for {
 		select {
+		case <-ctx.Done():
+			return
 		case request := <-transferRequests:
 			path, err := db.GetPathForHashHexString(request.Hash)
 			if err != nil {
 				log.Fatalf("Error decoding hash: %v\n", err)
 			}
 			copyFile(path, filepath.Join(dir, request.Hash+filepath.Ext(path)))
-		case <-done:
-			return
 		}
 	}
 }

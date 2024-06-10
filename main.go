@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/hex"
 	"log"
 	"os"
@@ -23,15 +24,17 @@ func main() {
 		log.Fatal(err)
 	}
 
-	done := make(chan struct{})
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	var workers []func()
 
 	indexStatus := make(chan string)
 	transferRequests := make(chan transfer.Request)
-	workers = append(workers, func() { index.FileWalker(workingDir, db, indexStatus, done) })
-	workers = append(workers, func() { coordinate.File("coordination", db, transferRequests, done) })
-	workers = append(workers, func() { transfer.File("transferred", db, transferRequests, done) })
+	workers = append(workers, func() { index.FileWalker(ctx, workingDir, db, indexStatus) })
+	workers = append(workers, func() { coordinate.File(ctx, "coordination", db, transferRequests) })
+	workers = append(workers, func() { transfer.File(ctx, "transferred", db, transferRequests) })
 
 	for _, worker := range workers {
 		go worker()
@@ -47,8 +50,5 @@ func main() {
 		log.Printf("%s %s", hex.EncodeToString(hashSet.Hash), hashSet.Path)
 	}
 
-	// for range workers {
-	// 	done <- struct{}{}
-	// }
-	<-make(chan struct{})
+	<-ctx.Done()
 }

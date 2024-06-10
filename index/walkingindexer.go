@@ -1,6 +1,7 @@
 package index
 
 import (
+	"context"
 	"crypto/sha256"
 	"log"
 	"os"
@@ -14,10 +15,10 @@ const (
 	indexUpdated = "INDEX_UPDATED"
 )
 
-func FileWalker(dir string, db *persistence.HashDB, status chan<- string, done <-chan struct{}) {
+func FileWalker(ctx context.Context, dir string, db *persistence.HashDB, status chan<- string) {
 	walk(dir, "", db)
 	status <- indexUpdated
-	<-done
+	<-ctx.Done()
 }
 
 func walk(baseDir string, subDir string, db *persistence.HashDB) {

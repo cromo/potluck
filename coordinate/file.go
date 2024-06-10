@@ -1,6 +1,7 @@
 package coordinate
 
 import (
+	"context"
 	"log"
 	"path/filepath"
 
@@ -9,18 +10,18 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
-func File(dir string, db *persistence.HashDB, transferRequests chan<- transfer.Request, done <-chan struct{}) {
+func File(ctx context.Context, dir string, db *persistence.HashDB, transferRequests chan<- transfer.Request) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer watcher.Close()
 
-	watcherDone := make(chan struct{})
-
 	go func() {
 		for {
 			select {
+			case <-ctx.Done():
+				return
 			case event, ok := <-watcher.Events:
 				if !ok {
 					return
@@ -37,8 +38,6 @@ func File(dir string, db *persistence.HashDB, transferRequests chan<- transfer.R
 					return
 				}
 				log.Println("error:", err)
-			case <-watcherDone:
-				return
 			}
 		}
 	}()
@@ -48,6 +47,5 @@ func File(dir string, db *persistence.HashDB, transferRequests chan<- transfer.R
 		log.Fatal(err)
 	}
 
-	<-done
-	watcherDone <- struct{}{}
+	<-ctx.Done()
 }
