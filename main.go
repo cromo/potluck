@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/cromo/potluck/coordinate"
 	"github.com/cromo/potluck/index"
@@ -13,6 +15,9 @@ import (
 )
 
 func main() {
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT)
+
 	workingDir, err := os.Getwd()
 	if err != nil {
 		log.Fatalf("%v", err)
@@ -27,6 +32,12 @@ func main() {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
+	go func() {
+		<-signals
+		log.Println("SIGINT received; performing graceful shutdown...")
+		cancel()
+	}()
 
 	var workers []func()
 
