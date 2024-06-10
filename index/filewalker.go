@@ -3,6 +3,7 @@ package index
 import (
 	"context"
 	"crypto/sha256"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -51,10 +52,13 @@ func walk(baseDir string, subDir string, db *persistence.HashDB) {
 }
 
 func hashFile(path string) []byte {
-	content, err := os.ReadFile(path)
+	in, err := os.Open(path)
 	if err != nil {
 		log.Fatal(err)
 	}
-	hash := sha256.Sum256(content)
-	return hash[:]
+	defer in.Close()
+
+	hasher := sha256.New()
+	io.Copy(hasher, in)
+	return hasher.Sum(nil)
 }
