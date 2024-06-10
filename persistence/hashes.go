@@ -2,6 +2,10 @@ package persistence
 
 import (
 	"database/sql"
+	"encoding/hex"
+	"log"
+
+	_ "github.com/glebarez/go-sqlite"
 )
 
 type HashDB struct{ db *sql.DB }
@@ -40,11 +44,28 @@ func (db *HashDB) GetPathForHash(hash []byte) (string, error) {
 	return path, nil
 }
 
+func (db *HashDB) GetPathForHashHexString(hash string) (string, error) {
+	hashBin, err := hex.DecodeString(hash)
+	if err != nil {
+		return "", err
+	}
+	return db.GetPathForHash(hashBin)
+}
+
 func (db *HashDB) HaveHash(hash []byte) bool {
 	result := db.db.QueryRow(`select path from content where hash = ?`, hash)
 	var path string
 	err := result.Scan(&path)
 	return err != sql.ErrNoRows
+}
+
+func (db *HashDB) HaveHashHexString(hash string) bool {
+	hashBin, err := hex.DecodeString(hash)
+	if err != nil {
+		log.Printf("Error decoding hash: %v\n", err)
+		return false
+	}
+	return db.HaveHash(hashBin)
 }
 
 func (db *HashDB) ListAll() ([]HashSet, error) {

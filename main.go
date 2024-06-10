@@ -5,8 +5,6 @@ import (
 	"log"
 	"os"
 
-	_ "github.com/glebarez/go-sqlite"
-
 	"github.com/cromo/potluck/coordinate"
 	"github.com/cromo/potluck/index"
 	"github.com/cromo/potluck/persistence"

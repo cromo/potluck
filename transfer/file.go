@@ -1,7 +1,6 @@
 package transfer
 
 import (
-	"encoding/hex"
 	"io"
 	"log"
 	"os"
@@ -14,24 +13,15 @@ func File(dir string, db *persistence.HashDB, transferRequests <-chan Request, d
 	for {
 		select {
 		case request := <-transferRequests:
-			path := pathFromHash(db, request.Hash)
+			path, err := db.GetPathForHashHexString(request.Hash)
+			if err != nil {
+				log.Fatalf("Error decoding hash: %v\n", err)
+			}
 			copyFile(path, filepath.Join(dir, request.Hash+filepath.Ext(path)))
 		case <-done:
 			return
 		}
 	}
-}
-
-func pathFromHash(db *persistence.HashDB, hash string) string {
-	hashBin, err := hex.DecodeString(hash)
-	if err != nil {
-		log.Fatalf("Error decoding hash: %v\n", err)
-	}
-	path, err := db.GetPathForHash(hashBin)
-	if err != nil {
-		log.Fatal(err)
-	}
-	return path
 }
 
 func copyFile(src, dst string) {

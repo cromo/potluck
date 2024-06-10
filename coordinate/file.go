@@ -1,7 +1,6 @@
 package coordinate
 
 import (
-	"encoding/hex"
 	"log"
 	"path/filepath"
 
@@ -29,7 +28,7 @@ func File(dir string, db *persistence.HashDB, transferRequests chan<- transfer.R
 				log.Println("event:", event)
 				if event.Has(fsnotify.Write) {
 					hash := filepath.Base(event.Name)
-					if have(db, hash) {
+					if db.HaveHashHexString(hash) {
 						transferRequests <- transfer.Request{Hash: hash}
 					}
 				}
@@ -51,13 +50,4 @@ func File(dir string, db *persistence.HashDB, transferRequests chan<- transfer.R
 
 	<-done
 	watcherDone <- struct{}{}
-}
-
-func have(db *persistence.HashDB, hash string) bool {
-	hashBin, err := hex.DecodeString(hash)
-	if err != nil {
-		log.Printf("Error decoding hash: %v\n", err)
-		return false
-	}
-	return db.HaveHash(hashBin)
 }
