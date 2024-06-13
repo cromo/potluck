@@ -10,8 +10,9 @@ import (
 
 type HashDB struct{ db *sql.DB }
 type HashSet struct {
-	Path string
-	Hash []byte
+	Path              string
+	Hash              []byte
+	LastHashTimestamp string
 }
 
 func CreateInMemory() (*HashDB, error) {
@@ -21,7 +22,9 @@ func CreateInMemory() (*HashDB, error) {
 	}
 	_, err = db.Exec(`create table if not exists content (
 		path text primary key not null,
-		hash blob not null
+		hash blob not null,
+		lastHashTimestamp text not null,
+		lastCheckTimestamp text not null
 	)`)
 	if err != nil {
 		return nil, err
@@ -29,8 +32,29 @@ func CreateInMemory() (*HashDB, error) {
 	return &HashDB{db: db}, nil
 }
 
-func (db *HashDB) AddFileHash(path string, hash []byte) error {
-	_, err := db.db.Exec(`insert into content (path, hash) VALUES (?, ?)`, path, hash)
+func (db *HashDB) GetFileCount() (int, error) {
+	result := db.db.QueryRow(`select count(*) from content`)
+	var count int
+	err := result.Scan(&count)
+	return count, err
+}
+
+func (db *HashDB) UpsertFileHash(path string, hash []byte) error {
+	_, err := db.db.Exec(`insert into content (
+		path,
+		hash,
+		lastHashTimestamp,
+		lastCheckTimestamp
+	) values (
+		?,
+		?,
+		datetime('now'),
+		datetime('now')
+	)	on conflict do update set
+		hash = ?,
+		lastHashTimestamp = datetime('now'),
+		lastCheckTimestamp = datetime('now')
+	`, path, hash, hash)
 	return err
 }
 
@@ -70,16 +94,17 @@ func (db *HashDB) HaveHashHexString(hash string) bool {
 
 func (db *HashDB) ListAll() ([]HashSet, error) {
 	var hashSet []HashSet
-	rows, err := db.db.Query(`select path, hash from content order by hash`)
+	rows, err := db.db.Query(`select path, hash, lastHashTimestamp from content order by hash`)
 
 	if err != nil {
 		return hashSet, err
 	}
 	var path string
 	var hash []byte
+	var lastHashTimestamp string
 	for rows.Next() {
-		rows.Scan(&path, &hash)
-		hashSet = append(hashSet, HashSet{Path: path, Hash: hash})
+		rows.Scan(&path, &hash, &lastHashTimestamp)
+		hashSet = append(hashSet, HashSet{Path: path, Hash: hash, LastHashTimestamp: lastHashTimestamp})
 	}
 	return hashSet, nil
 }

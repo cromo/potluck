@@ -60,15 +60,27 @@ func main() {
 		go transferer.Transfer(ctx, db, transferRequests)
 	}
 
-	<-indexStatus
-
-	hashSets, err := db.ListAll()
-	if err != nil {
-		log.Fatal(err)
+	previousFileCount := 0
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-indexStatus:
+			fileCount, err := db.GetFileCount()
+			if err != nil {
+				log.Fatal(err)
+			}
+			if fileCount != previousFileCount {
+				log.Printf("%d files indexed", fileCount)
+				hashSets, err := db.ListAll()
+				if err != nil {
+					log.Fatal(err)
+				}
+				for _, hashSet := range hashSets {
+					log.Printf("%s %s %s", hex.EncodeToString(hashSet.Hash), hashSet.LastHashTimestamp, hashSet.Path)
+				}
+			}
+			previousFileCount = fileCount
+		}
 	}
-	for _, hashSet := range hashSets {
-		log.Printf("%s %s", hex.EncodeToString(hashSet.Hash), hashSet.Path)
-	}
-
-	<-ctx.Done()
 }

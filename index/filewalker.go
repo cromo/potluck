@@ -7,9 +7,9 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/cromo/potluck/persistence"
-	_ "github.com/glebarez/go-sqlite"
 )
 
 const (
@@ -21,12 +21,27 @@ type FileWalker struct {
 }
 
 func (walker *FileWalker) Index(ctx context.Context, db *persistence.HashDB, status chan<- string) {
-	walk(walker.Dir, "", db)
+	indexStart := time.Now()
+	walk(ctx, walker.Dir, "", db)
+	log.Printf("Initial index took %s", time.Since(indexStart))
 	status <- indexUpdated
-	<-ctx.Done()
+
+	ticker := time.NewTicker(5 * time.Second)
+	for {
+		select {
+		case <-ctx.Done():
+			ticker.Stop()
+			return
+		case <-ticker.C:
+			indexStart = time.Now()
+			walk(ctx, walker.Dir, "", db)
+			log.Printf("Subsequent index took %s", time.Since(indexStart))
+			status <- indexUpdated
+		}
+	}
 }
 
-func walk(baseDir string, subDir string, db *persistence.HashDB) {
+func walk(ctx context.Context, baseDir string, subDir string, db *persistence.HashDB) {
 	dir := filepath.Join(baseDir, subDir)
 	d, err := os.Open(dir)
 	if err != nil {
@@ -39,13 +54,18 @@ func walk(baseDir string, subDir string, db *persistence.HashDB) {
 		log.Fatal("Failed to read directory")
 	}
 	for _, file := range files {
-		fullPath := filepath.Join(dir, file.Name())
-		if file.IsDir() {
-			walk(baseDir, filepath.Join(subDir, file.Name()), db)
-		} else {
-			err := db.AddFileHash(filepath.Join(subDir, file.Name()), hashFile(fullPath))
-			if err != nil {
-				log.Fatal(err)
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			fullPath := filepath.Join(dir, file.Name())
+			if file.IsDir() {
+				walk(ctx, baseDir, filepath.Join(subDir, file.Name()), db)
+			} else {
+				err := db.UpsertFileHash(filepath.Join(subDir, file.Name()), hashFile(fullPath))
+				if err != nil {
+					log.Fatal(err)
+				}
 			}
 		}
 	}
