@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"log"
+	"time"
 
 	_ "github.com/glebarez/go-sqlite"
 )
@@ -56,6 +57,16 @@ func (db *HashDB) UpsertFileHash(path string, hash []byte) error {
 		lastCheckTimestamp = datetime('now')
 	`, path, hash, hash)
 	return err
+}
+
+func (db *HashDB) GetLastCheckTimestamp(path string) (time.Time, error) {
+	result := db.db.QueryRow(`select lastCheckTimestamp from content where path = ?`, path)
+	var timestamp string
+	err := result.Scan(&timestamp)
+	if err == sql.ErrNoRows {
+		return time.Time{}, err
+	}
+	return time.Parse("2006-01-02 03:04:05", timestamp)
 }
 
 func (db *HashDB) GetPathForHash(hash []byte) (string, error) {
