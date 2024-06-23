@@ -41,6 +41,7 @@ func (db *HashDB) GetFileCount() (int, error) {
 }
 
 func (db *HashDB) UpsertFileHash(path string, hash []byte) error {
+	now := time.Now().UTC()
 	_, err := db.db.Exec(`insert into content (
 		path,
 		hash,
@@ -49,13 +50,13 @@ func (db *HashDB) UpsertFileHash(path string, hash []byte) error {
 	) values (
 		?,
 		?,
-		datetime('now'),
-		datetime('now')
+		?,
+		?
 	)	on conflict do update set
 		hash = ?,
-		lastHashTimestamp = datetime('now'),
-		lastCheckTimestamp = datetime('now')
-	`, path, hash, hash)
+		lastHashTimestamp = ?,
+		lastCheckTimestamp = ?
+	`, path, hash, now, now, hash, now, now)
 	return err
 }
 
@@ -67,6 +68,14 @@ func (db *HashDB) GetLastCheckTimestamp(path string) (time.Time, error) {
 		return time.Time{}, err
 	}
 	return time.Parse("2006-01-02 03:04:05", timestamp)
+}
+
+func (db *HashDB) DeleteFilesWithLastCheckTimestampBefore(cutoffTime time.Time) error {
+	_, err := db.db.Exec(`
+	delete from content
+	where lastCheckTimestamp < ?
+	`, cutoffTime.UTC())
+	return err
 }
 
 func (db *HashDB) GetPathForHash(hash []byte) (string, error) {

@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/cromo/potluck/coordinate"
 	"github.com/cromo/potluck/index"
@@ -46,7 +47,7 @@ func main() {
 	var coordinators []coordinate.Coordinator
 	var transferers []transfer.Transferer
 
-	indexers = append(indexers, &index.FileWalker{Dir: workingDir})
+	indexers = append(indexers, &index.FileWalker{Dir: workingDir, Period: 5 * time.Second})
 	coordinators = append(coordinators, &coordinate.FileName{Dir: "coordination"})
 	transferers = append(transferers, &transfer.FileCopy{Dir: "transferred"})
 
