@@ -15,6 +15,12 @@ type FileCopy struct {
 }
 
 func (transferer *FileCopy) Transfer(ctx context.Context, db *persistence.HashDB, transferRequests <-chan Request) {
+	go transferer.send(ctx, db, transferRequests)
+	// TODO(cromo): add sending off the receive code here
+	<-ctx.Done()
+}
+
+func (transferer *FileCopy) send(ctx context.Context, db *persistence.HashDB, transferRequests <-chan Request) {
 	for {
 		select {
 		case <-ctx.Done():
