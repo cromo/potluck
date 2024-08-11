@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/cromo/potluck/coordinate"
+	"github.com/cromo/potluck/identity"
 	"github.com/cromo/potluck/index"
 	"github.com/cromo/potluck/persistence"
 	"github.com/cromo/potluck/transfer"
@@ -29,6 +30,10 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// TODO(cromo): Figure out how to incorporate an ID into transfer process
+	id := identity.GenerateID()
+	log.Printf("Generated ID: %s", id)
 
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)

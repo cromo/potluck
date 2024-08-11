@@ -5,6 +5,7 @@ go 1.21.6
 require (
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/glebarez/go-sqlite v1.22.0
+	github.com/jaevor/go-nanoid v1.4.0
 )
 
 require (
