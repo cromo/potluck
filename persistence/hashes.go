@@ -21,12 +21,13 @@ func CreateInMemory() (*HashDB, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, err = db.Exec(`create table if not exists content (
-		path text primary key not null,
-		hash blob not null,
-		lastHashTimestamp text not null,
-		lastCheckTimestamp text not null
-	)`)
+	_, err = db.Exec(`
+		create table if not exists content (
+			path text primary key not null,
+			hash blob not null,
+			lastHashTimestamp text not null,
+			lastCheckTimestamp text not null
+		)`)
 	if err != nil {
 		return nil, err
 	}
@@ -42,26 +43,32 @@ func (db *HashDB) GetFileCount() (int, error) {
 
 func (db *HashDB) UpsertFileHash(path string, hash []byte) error {
 	now := time.Now().UTC()
-	_, err := db.db.Exec(`insert into content (
-		path,
-		hash,
-		lastHashTimestamp,
-		lastCheckTimestamp
-	) values (
-		?,
-		?,
-		?,
-		?
-	)	on conflict do update set
-		hash = ?,
-		lastHashTimestamp = ?,
-		lastCheckTimestamp = ?
-	`, path, hash, now, now, hash, now, now)
+	_, err := db.db.Exec(`
+		insert into content (
+			path,
+			hash,
+			lastHashTimestamp,
+			lastCheckTimestamp
+		) values (
+			@path,
+			@hash,
+			@lastHashTimestamp,
+			@lastCheckTimestamp
+		)	on conflict do update set
+			hash = @hash,
+			lastHashTimestamp = @lastHashTimestamp,
+			lastCheckTimestamp = @lastCheckTimestamp`,
+		sql.Named("path", path),
+		sql.Named("hash", hash),
+		sql.Named("lastHashTimestamp", now),
+		sql.Named("lastCheckTimestamp", now))
 	return err
 }
 
 func (db *HashDB) GetLastCheckTimestamp(path string) (time.Time, error) {
-	result := db.db.QueryRow(`select lastCheckTimestamp from content where path = ?`, path)
+	result := db.db.QueryRow(
+		`select lastCheckTimestamp from content where path = @path`,
+		sql.Named("path", path))
 	var timestamp string
 	err := result.Scan(&timestamp)
 	if err == sql.ErrNoRows {
@@ -72,14 +79,16 @@ func (db *HashDB) GetLastCheckTimestamp(path string) (time.Time, error) {
 
 func (db *HashDB) DeleteFilesWithLastCheckTimestampBefore(cutoffTime time.Time) error {
 	_, err := db.db.Exec(`
-	delete from content
-	where lastCheckTimestamp < ?
-	`, cutoffTime.UTC())
+		delete from content
+		where lastCheckTimestamp < @cutoffTimestamp`,
+		sql.Named("cutoffTimestamp", cutoffTime.UTC()))
 	return err
 }
 
 func (db *HashDB) GetPathForHash(hash []byte) (string, error) {
-	result := db.db.QueryRow(`select path from content where hash = ?`, hash)
+	result := db.db.QueryRow(
+		`select path from content where hash = @hash`,
+		sql.Named("hash", hash))
 	var path string
 	err := result.Scan(&path)
 	if err == sql.ErrNoRows {
@@ -97,7 +106,9 @@ func (db *HashDB) GetPathForHashHexString(hash string) (string, error) {
 }
 
 func (db *HashDB) HaveHash(hash []byte) bool {
-	result := db.db.QueryRow(`select path from content where hash = ?`, hash)
+	result := db.db.QueryRow(
+		`select path from content where hash = @hash`,
+		sql.Named("hash", hash))
 	var path string
 	err := result.Scan(&path)
 	return err != sql.ErrNoRows
