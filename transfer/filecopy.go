@@ -20,7 +20,7 @@ func (transferer *FileCopy) Transfer(ctx context.Context, db *persistence.HashDB
 		case <-ctx.Done():
 			return
 		case request := <-transferRequests:
-			path, err := db.GetPathForHashHexString(request.Hash)
+			path, err := db.GetPathForHashHexString(ctx, request.Hash)
 			if err != nil {
 				log.Fatalf("Error decoding hash: %v\n", err)
 			}

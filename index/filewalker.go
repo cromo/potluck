@@ -24,7 +24,7 @@ type FileWalker struct {
 func (walker *FileWalker) Index(ctx context.Context, db *persistence.HashDB, status chan<- string) {
 	indexStart := time.Now()
 	walk(ctx, walker.Dir, "", db)
-	if err := db.DeleteFilesWithLastCheckTimestampBefore(indexStart); err != nil {
+	if err := db.DeleteFilesWithLastCheckTimestampBefore(ctx, indexStart); err != nil {
 		log.Fatal("Failed to remove old hash entries", err)
 	}
 	log.Printf("Initial index took %s", time.Since(indexStart))
@@ -43,7 +43,7 @@ func (walker *FileWalker) Index(ctx context.Context, db *persistence.HashDB, sta
 		case <-ticker.C:
 			indexStart = time.Now()
 			walk(ctx, walker.Dir, "", db)
-			if err := db.DeleteFilesWithLastCheckTimestampBefore(indexStart); err != nil {
+			if err := db.DeleteFilesWithLastCheckTimestampBefore(ctx, indexStart); err != nil {
 				log.Fatal("Failed to remove old hash entries", err)
 			}
 			log.Printf("Subsequent index took %s", time.Since(indexStart))
@@ -73,7 +73,7 @@ func walk(ctx context.Context, baseDir string, subDir string, db *persistence.Ha
 			if file.IsDir() {
 				walk(ctx, baseDir, filepath.Join(subDir, file.Name()), db)
 			} else {
-				err := db.UpsertFileHash(filepath.Join(subDir, file.Name()), hashFile(fullPath))
+				err := db.UpsertFileHash(ctx, filepath.Join(subDir, file.Name()), hashFile(fullPath))
 				if err != nil {
 					log.Fatal(err)
 				}

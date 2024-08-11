@@ -84,7 +84,7 @@ func TestWalkerAddsHashesToDatabase(t *testing.T) {
 
 	w.Index(context.Background(), db, c)
 
-	files, err := db.ListAll()
+	files, err := db.ListAll(context.Background())
 	if err != nil {
 		t.Fatal("Unable to get files and hashes", err)
 	}
@@ -116,7 +116,7 @@ func TestWalkerUpdatesHashesWhenContentsChange(t *testing.T) {
 	writeTestFile(t, dir, updatedTestingFile)
 	w.Index(context.Background(), db, c)
 
-	files, err := db.ListAll()
+	files, err := db.ListAll(context.Background())
 	if err != nil {
 		t.Fatal("Unable to get files and hashes", err)
 	}
@@ -150,7 +150,7 @@ func TestWalkerRemovesHashesWhenFilesDisappear(t *testing.T) {
 	}
 	w.Index(context.Background(), db, c)
 
-	files, err := db.ListAll()
+	files, err := db.ListAll(context.Background())
 	if err != nil {
 		t.Fatal("Unable to get files and hashes", err)
 	}

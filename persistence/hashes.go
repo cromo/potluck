@@ -1,6 +1,7 @@
 package persistence
 
 import (
+	"context"
 	"database/sql"
 	"encoding/hex"
 	"log"
@@ -34,17 +35,18 @@ func CreateInMemory() (*HashDB, error) {
 	return &HashDB{db: db}, nil
 }
 
-func (db *HashDB) GetFileCount() (int, error) {
-	result := db.db.QueryRow(`select count(*) from content`)
+func (db *HashDB) GetFileCount(ctx context.Context) (int, error) {
+	result := db.db.QueryRowContext(ctx, `select count(*) from content`)
 	var count int
 	err := result.Scan(&count)
 	return count, err
 }
 
-func (db *HashDB) UpsertFileHash(path string, hash []byte) error {
+func (db *HashDB) UpsertFileHash(ctx context.Context, path string, hash []byte) error {
 	now := time.Now().UTC()
-	_, err := db.db.Exec(`
-		insert into content (
+	_, err := db.db.ExecContext(
+		ctx,
+		`insert into content (
 			path,
 			hash,
 			lastHashTimestamp,
@@ -65,8 +67,9 @@ func (db *HashDB) UpsertFileHash(path string, hash []byte) error {
 	return err
 }
 
-func (db *HashDB) GetLastCheckTimestamp(path string) (time.Time, error) {
-	result := db.db.QueryRow(
+func (db *HashDB) GetLastCheckTimestamp(ctx context.Context, path string) (time.Time, error) {
+	result := db.db.QueryRowContext(
+		ctx,
 		`select lastCheckTimestamp from content where path = @path`,
 		sql.Named("path", path))
 	var timestamp string
@@ -77,16 +80,18 @@ func (db *HashDB) GetLastCheckTimestamp(path string) (time.Time, error) {
 	return time.Parse("2006-01-02 03:04:05", timestamp)
 }
 
-func (db *HashDB) DeleteFilesWithLastCheckTimestampBefore(cutoffTime time.Time) error {
-	_, err := db.db.Exec(`
-		delete from content
+func (db *HashDB) DeleteFilesWithLastCheckTimestampBefore(ctx context.Context, cutoffTime time.Time) error {
+	_, err := db.db.ExecContext(
+		ctx,
+		`delete from content
 		where lastCheckTimestamp < @cutoffTimestamp`,
 		sql.Named("cutoffTimestamp", cutoffTime.UTC()))
 	return err
 }
 
-func (db *HashDB) GetPathForHash(hash []byte) (string, error) {
-	result := db.db.QueryRow(
+func (db *HashDB) GetPathForHash(ctx context.Context, hash []byte) (string, error) {
+	result := db.db.QueryRowContext(
+		ctx,
 		`select path from content where hash = @hash`,
 		sql.Named("hash", hash))
 	var path string
@@ -97,16 +102,17 @@ func (db *HashDB) GetPathForHash(hash []byte) (string, error) {
 	return path, nil
 }
 
-func (db *HashDB) GetPathForHashHexString(hash string) (string, error) {
+func (db *HashDB) GetPathForHashHexString(ctx context.Context, hash string) (string, error) {
 	hashBin, err := hex.DecodeString(hash)
 	if err != nil {
 		return "", err
 	}
-	return db.GetPathForHash(hashBin)
+	return db.GetPathForHash(ctx, hashBin)
 }
 
-func (db *HashDB) HaveHash(hash []byte) bool {
-	result := db.db.QueryRow(
+func (db *HashDB) HaveHash(ctx context.Context, hash []byte) bool {
+	result := db.db.QueryRowContext(
+		ctx,
 		`select path from content where hash = @hash`,
 		sql.Named("hash", hash))
 	var path string
@@ -114,18 +120,18 @@ func (db *HashDB) HaveHash(hash []byte) bool {
 	return err != sql.ErrNoRows
 }
 
-func (db *HashDB) HaveHashHexString(hash string) bool {
+func (db *HashDB) HaveHashHexString(ctx context.Context, hash string) bool {
 	hashBin, err := hex.DecodeString(hash)
 	if err != nil {
 		log.Printf("Error decoding hash: %v\n", err)
 		return false
 	}
-	return db.HaveHash(hashBin)
+	return db.HaveHash(ctx, hashBin)
 }
 
-func (db *HashDB) ListAll() ([]HashSet, error) {
+func (db *HashDB) ListAll(ctx context.Context) ([]HashSet, error) {
 	var hashSet []HashSet
-	rows, err := db.db.Query(`select path, hash, lastHashTimestamp from content order by hash`)
+	rows, err := db.db.QueryContext(ctx, `select path, hash, lastHashTimestamp from content order by hash`)
 
 	if err != nil {
 		return hashSet, err

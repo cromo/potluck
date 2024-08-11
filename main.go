@@ -67,13 +67,13 @@ func main() {
 		case <-ctx.Done():
 			return
 		case <-indexStatus:
-			fileCount, err := db.GetFileCount()
+			fileCount, err := db.GetFileCount(ctx)
 			if err != nil {
 				log.Fatal(err)
 			}
 			if fileCount != previousFileCount {
 				log.Printf("%d files indexed", fileCount)
-				hashSets, err := db.ListAll()
+				hashSets, err := db.ListAll(ctx)
 				if err != nil {
 					log.Fatal(err)
 				}

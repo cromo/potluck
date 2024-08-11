@@ -33,7 +33,7 @@ func (coordinator *FileName) Coordinate(ctx context.Context, db *persistence.Has
 				log.Println("event:", event)
 				if event.Has(fsnotify.Write) {
 					hash := filepath.Base(event.Name)
-					if db.HaveHashHexString(hash) {
+					if db.HaveHashHexString(ctx, hash) {
 						transferRequests <- transfer.Request{Hash: hash}
 					}
 				}
