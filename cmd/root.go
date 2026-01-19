@@ -51,8 +51,6 @@ type serveArgs struct {
 
 func serve(args *serveArgs) {
 	log.Printf("Provided share directory: %s\n", args.shareRoot)
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGINT)
 
 	workingDir, err := os.Getwd()
 	if err != nil {
@@ -75,24 +73,42 @@ func serve(args *serveArgs) {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	cancelOnSigint(cancel)
 
+	indexers, coordinators, transferers := configureWorkers(workingDir)
+	launchWorkers(ctx, db, indexers, coordinators, transferers)
+}
+
+func cancelOnSigint(cancel context.CancelFunc) {
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT)
 	go func() {
 		<-signals
 		log.Println("SIGINT received; performing graceful shutdown...")
 		cancel()
 	}()
+}
 
-	indexStatus := make(chan string)
-	transferRequests := make(chan transfer.Request)
-
+// Configure all the worker goroutines.
+//
+// Eventually this will pull all this configuration from the database. Until
+// then, this set up is mostly hard-coded and very ad-hoc.
+func configureWorkers(shareDir string) ([]index.Indexer, []coordinate.Coordinator, []transfer.Transferer) {
 	var indexers []index.Indexer
 	var coordinators []coordinate.Coordinator
 	var transferers []transfer.Transferer
 
-	indexers = append(indexers, &index.FileWalker{Dir: workingDir, Period: 5 * time.Second})
+	indexers = append(indexers, &index.FileWalker{Dir: shareDir, Period: 5 * time.Second})
 	coordinators = append(coordinators, &coordinate.FileName{Dir: "coordination"})
 	transferers = append(transferers, &transfer.FileCopy{Dir: "transferred"})
 
+	return indexers, coordinators, transferers
+}
+
+// Runs all workers in separate goroutines with shared context.
+func launchWorkers(ctx context.Context, db *persistence.HashDB, indexers []index.Indexer, coordinators []coordinate.Coordinator, transferers []transfer.Transferer) {
+	indexStatus := make(chan string)
+	transferRequests := make(chan transfer.Request)
 	for _, indexer := range indexers {
 		go indexer.Index(ctx, db, indexStatus)
 	}
@@ -103,6 +119,13 @@ func serve(args *serveArgs) {
 		go transferer.Transfer(ctx, db, transferRequests)
 	}
 
+	// This may become its own worker type at some point in the future, but will
+	// likely be removed instead.
+	debugMonitor(ctx, db, indexStatus)
+}
+
+// Monitors changes to the file index and logs all files when the index changes.
+func debugMonitor(ctx context.Context, db *persistence.HashDB, indexStatus <-chan string) {
 	previousFileCount := 0
 	for {
 		select {
