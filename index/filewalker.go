@@ -22,13 +22,8 @@ type FileWalker struct {
 }
 
 func (walker *FileWalker) Index(ctx context.Context, db *persistence.HashDB, status chan<- string) {
-	indexStart := time.Now()
-	walk(ctx, walker.Dir, "", db)
-	if err := db.DeleteFilesWithLastCheckTimestampBefore(ctx, indexStart); err != nil {
-		log.Fatal("Failed to remove old hash entries", err)
-	}
-	log.Printf("Initial index took %s", time.Since(indexStart))
-	status <- indexUpdated
+	indexingDuration := walker.refreshIndex(ctx, db, status)
+	log.Printf("Initial index took %s", indexingDuration)
 
 	if walker.Period < 0 {
 		return
@@ -41,15 +36,21 @@ func (walker *FileWalker) Index(ctx context.Context, db *persistence.HashDB, sta
 			ticker.Stop()
 			return
 		case <-ticker.C:
-			indexStart = time.Now()
-			walk(ctx, walker.Dir, "", db)
-			if err := db.DeleteFilesWithLastCheckTimestampBefore(ctx, indexStart); err != nil {
-				log.Fatal("Failed to remove old hash entries", err)
-			}
-			log.Printf("Subsequent index took %s", time.Since(indexStart))
-			status <- indexUpdated
+			indexingDuration = walker.refreshIndex(ctx, db, status)
+			log.Printf("Initial index took %s", indexingDuration)
 		}
 	}
+}
+
+func (walker *FileWalker) refreshIndex(ctx context.Context, db *persistence.HashDB, status chan<- string) time.Duration {
+	indexStart := time.Now()
+	walk(ctx, walker.Dir, "", db)
+	if err := db.DeleteFilesWithLastCheckTimestampBefore(ctx, indexStart); err != nil {
+		log.Fatal("Failed to remove old hash entries", err)
+	}
+	indexingDuration := time.Since(indexStart)
+	status <- indexUpdated
+	return indexingDuration
 }
 
 func walk(ctx context.Context, baseDir string, subDir string, db *persistence.HashDB) {
