@@ -8,5 +8,5 @@ import (
 )
 
 type Coordinator interface {
-	Coordinate(ctx context.Context, db *persistence.HashDB, transferRequests chan<- transfer.Request)
+	Coordinate(ctx context.Context, db *persistence.HashDB, transferRequests chan transfer.Request)
 }

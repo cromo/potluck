@@ -14,7 +14,7 @@ type FileName struct {
 	Dir string
 }
 
-func (coordinator *FileName) Coordinate(ctx context.Context, db *persistence.HashDB, transferRequests chan<- transfer.Request) {
+func (coordinator *FileName) Coordinate(ctx context.Context, db *persistence.HashDB, transferRequests chan transfer.Request) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Fatal(err)
