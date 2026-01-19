@@ -18,6 +18,7 @@ import (
 )
 
 var sharedRoot string
+var peerId string
 var rootCmd = &cobra.Command{
 	Use:   "potluck",
 	Short: "Share files with peers who can also share their own files",
@@ -32,17 +33,20 @@ func Execute() error {
 
 func init() {
 	rootCmd.PersistentFlags().StringVar(&sharedRoot, "share", "", "the directory to share")
+	rootCmd.PersistentFlags().StringVar(&peerId, "peer-id", "", "Use the specified ID for the peer")
 }
 
 // Adapts from the Cobra command domain to the application core domain.
 func runServe(cmd *cobra.Command, args []string) {
 	serve(&serveArgs{
 		shareRoot: sharedRoot,
+		peerId:    peerId,
 	})
 }
 
 type serveArgs struct {
 	shareRoot string
+	peerId    string
 }
 
 func serve(args *serveArgs) {
@@ -63,7 +67,10 @@ func serve(args *serveArgs) {
 
 	// TODO(cromo): Figure out how to incorporate an ID into transfer process
 	id := identity.GenerateID()
-	log.Printf("Generated ID: %s", id)
+	if args.peerId != "" {
+		id = args.peerId
+	}
+	log.Printf("Peer ID: %s", id)
 
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
