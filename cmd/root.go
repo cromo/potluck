@@ -18,7 +18,9 @@ import (
 )
 
 var sharedRoot string
+var localId string
 var peerId string
+
 var rootCmd = &cobra.Command{
 	Use:   "potluck",
 	Short: "Share files with peers who can also share their own files",
@@ -33,19 +35,22 @@ func Execute() error {
 
 func init() {
 	rootCmd.PersistentFlags().StringVar(&sharedRoot, "share", "", "the directory to share")
-	rootCmd.PersistentFlags().StringVar(&peerId, "peer-id", "", "Use the specified ID for the peer")
+	rootCmd.PersistentFlags().StringVar(&localId, "local-id", "", "Use the specified ID for the local node")
+	rootCmd.PersistentFlags().StringVar(&peerId, "peer-id", "", "The ID of a peer to connect to")
 }
 
 // Adapts from the Cobra command domain to the application core domain.
 func runServe(cmd *cobra.Command, args []string) {
 	serve(&serveArgs{
 		shareRoot: sharedRoot,
+		localId:   localId,
 		peerId:    peerId,
 	})
 }
 
 type serveArgs struct {
 	shareRoot string
+	localId   string
 	peerId    string
 }
 
