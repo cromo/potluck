@@ -14,7 +14,11 @@ type FileName struct {
 	Dir string
 }
 
-func (coordinator *FileName) Coordinate(ctx context.Context, db *persistence.HashDB, transferRequests chan transfer.Request) {
+func (coordinator *FileName) Coordinate(
+	ctx context.Context,
+	db *persistence.HashDB,
+	incomingTransferRequests chan<- *transfer.Request,
+	outgoingTransferRequests <-chan *transfer.Request) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Fatal(err)
@@ -26,6 +30,8 @@ func (coordinator *FileName) Coordinate(ctx context.Context, db *persistence.Has
 			select {
 			case <-ctx.Done():
 				return
+			case r := <-outgoingTransferRequests:
+				log.Printf("Got request for %s\n", r.Hash)
 			case event, ok := <-watcher.Events:
 				if !ok {
 					return
@@ -34,7 +40,7 @@ func (coordinator *FileName) Coordinate(ctx context.Context, db *persistence.Has
 				if event.Has(fsnotify.Write) {
 					hash := filepath.Base(event.Name)
 					if db.HaveHashHexString(ctx, hash) {
-						transferRequests <- transfer.Request{Hash: hash}
+						incomingTransferRequests <- &transfer.Request{Hash: hash}
 					}
 				}
 			case err, ok := <-watcher.Errors:

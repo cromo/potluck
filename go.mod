@@ -1,6 +1,6 @@
 module github.com/cromo/potluck
 
-go 1.21.6
+go 1.25.6
 
 require (
 	github.com/fsnotify/fsnotify v1.7.0

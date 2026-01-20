@@ -3,7 +3,9 @@ package cmd
 import (
 	"context"
 	"encoding/hex"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -113,20 +115,45 @@ func configureWorkers(shareDir string) ([]index.Indexer, []coordinate.Coordinato
 // Runs all workers in separate goroutines with shared context.
 func launchWorkers(ctx context.Context, db *persistence.HashDB, indexers []index.Indexer, coordinators []coordinate.Coordinator, transferers []transfer.Transferer) {
 	indexStatus := make(chan string)
-	transferRequests := make(chan transfer.Request)
+	incomingTransferRequests := make(chan *transfer.Request)
+	outgoingTransferRequests := make(chan *transfer.Request)
 	for _, indexer := range indexers {
 		go indexer.Index(ctx, db, indexStatus)
 	}
 	for _, coordinator := range coordinators {
-		go coordinator.Coordinate(ctx, db, transferRequests)
+		go coordinator.Coordinate(ctx, db, incomingTransferRequests, outgoingTransferRequests)
 	}
 	for _, transferer := range transferers {
-		go transferer.Transfer(ctx, db, transferRequests)
+		go transferer.Transfer(ctx, db, incomingTransferRequests)
 	}
+
+	go serveApi(ctx, db, outgoingTransferRequests)
 
 	// This may become its own worker type at some point in the future, but will
 	// likely be removed instead.
 	debugMonitor(ctx, db, indexStatus)
+}
+
+func serveApi(ctx context.Context, db *persistence.HashDB, outgoingTransferRequests chan<- *transfer.Request) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("Root handler called")
+		io.WriteString(w, "Hello world")
+	})
+	mux.HandleFunc("/hello/{name}", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "Hello!")
+
+	})
+	mux.HandleFunc("/api/request/{peerId}/{contentHash}", func(w http.ResponseWriter, r *http.Request) {
+		sourcePeerId := r.PathValue("peerId")
+		contentHash := r.PathValue("contentHash")
+		log.Printf("Asked to request content with hash %s from peer %s\n", contentHash, sourcePeerId)
+		outgoingTransferRequests <- &transfer.Request{Hash: contentHash}
+		io.WriteString(w, "Placing request...")
+	})
+
+	// TODO: handle graceful shutdown of the HTTP server, e.g. https://dev.to/mokiat/proper-http-shutdown-in-go-3fji
+	http.ListenAndServe(":8080", mux)
 }
 
 // Monitors changes to the file index and logs all files when the index changes.

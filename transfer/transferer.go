@@ -7,5 +7,8 @@ import (
 )
 
 type Transferer interface {
-	Transfer(ctx context.Context, db *persistence.HashDB, transferRequests <-chan Request)
+	Transfer(
+		ctx context.Context,
+		db *persistence.HashDB,
+		transferRequests <-chan *Request)
 }

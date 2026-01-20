@@ -37,7 +37,7 @@ func (walker *FileWalker) Index(ctx context.Context, db *persistence.HashDB, sta
 			return
 		case <-ticker.C:
 			indexingDuration = walker.refreshIndex(ctx, db, status)
-			log.Printf("Initial index took %s", indexingDuration)
+			log.Printf("Subsequent index took %s", indexingDuration)
 		}
 	}
 }
